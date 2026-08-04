@@ -8,6 +8,15 @@ import { formatSize } from './lib/utils/format.js'
 import { friendlyFsErrorMessage } from './lib/utils/errors.js'
 import { drawProgressBar } from './lib/utils/progress.js'
 
+function exitWithError(error) {
+  console.error(friendlyFsErrorMessage(error))
+  process.exit(1)
+}
+
+function attachErrorHandler(emitter) {
+  emitter.on('error', exitWithError)
+}
+
 function printHelp() {
   console.log(`file-organizer
 
@@ -140,6 +149,7 @@ async function main() {
         process.exit(1)
       }
       const scanner = new Scanner()
+      attachErrorHandler(scanner)
 
       scanner.on('scan-start', ({ directory: dir, totalFiles }) => {
         console.log(`📂 Сканування: ${dir}`)
@@ -155,11 +165,6 @@ async function main() {
         printScanReport(stats)
       })
 
-      scanner.on('error', (err) => {
-        console.error(friendlyFsErrorMessage(err))
-        process.exit(1)
-      })
-
       await scanner.scan(directory)
       return
     }
@@ -170,6 +175,7 @@ async function main() {
         process.exit(1)
       }
       const finder = new DuplicateFinder()
+      attachErrorHandler(finder)
 
       finder.on('scan-start', ({ directory: dir, totalFiles }) => {
         console.log(`🔍 Пошук дублікатів у: ${dir}`)
@@ -185,11 +191,6 @@ async function main() {
         printDuplicatesReport(result)
       })
 
-      finder.on('error', (err) => {
-        console.error(friendlyFsErrorMessage(err))
-        process.exit(1)
-      })
-
       await finder.find(directory)
       return
     }
@@ -200,6 +201,7 @@ async function main() {
         process.exit(1)
       }
       const organizer = new Organizer()
+      attachErrorHandler(organizer)
 
       organizer.on('organize-start', ({ sourceDirectory, outputDirectory, totalFiles }) => {
         console.log(`📦 Організація: ${sourceDirectory}`)
@@ -216,8 +218,8 @@ async function main() {
       })
 
       organizer.on('copy-error', ({ error }) => {
-        console.error('\n' + friendlyFsErrorMessage(error))
-        process.exit(1)
+        process.stdout.write('\n')
+        exitWithError(error)
       })
 
       organizer.on('organize-complete', (result) => {
@@ -228,11 +230,6 @@ async function main() {
           console.log(`  ${category}: ${count} файлів → ${result.outputDirectory}/${category}/`)
         }
         console.log(`\nВсього скопійовано: ${result.totalFiles} файлів (${formatSize(result.totalCopiedBytes)})`)
-      })
-
-      organizer.on('error', (err) => {
-        console.error(friendlyFsErrorMessage(err))
-        process.exit(1)
       })
 
       await organizer.organize(directory, flags.output)
@@ -252,6 +249,7 @@ async function main() {
       }
 
       const cleanup = new Cleanup()
+      attachErrorHandler(cleanup)
 
       cleanup.on('cleanup-start', ({ directory: dir }) => {
         console.log(`🧹 Очищення: ${dir}`)
@@ -291,11 +289,6 @@ async function main() {
         console.log(`Видалено: ${result.deleted} файлів (${formatSize(result.freedBytes)} звільнено)`)
       })
 
-      cleanup.on('error', (err) => {
-        console.error(friendlyFsErrorMessage(err))
-        process.exit(1)
-      })
-
       await cleanup.run(directory, {
         olderThanDays,
         confirm: Boolean(flags.confirm),
@@ -308,8 +301,7 @@ async function main() {
     printHelp()
     process.exit(1)
   } catch (err) {
-    console.error(friendlyFsErrorMessage(err))
-    process.exit(1)
+    exitWithError(err)
   }
 }
 
