@@ -2,6 +2,7 @@ import process from 'node:process'
 
 import { Scanner } from './lib/scanner.js'
 import { DuplicateFinder } from './lib/duplicates.js'
+import { Organizer } from './lib/organizer.js'
 import { formatSize } from './lib/utils/format.js'
 import { friendlyFsErrorMessage } from './lib/utils/errors.js'
 import { drawProgressBar } from './lib/utils/progress.js'
@@ -187,7 +188,43 @@ async function main() {
         printHelp()
         process.exit(1)
       }
-      console.log('OK: organize', directory, '->', flags.output)
+      const organizer = new Organizer()
+
+      organizer.on('organize-start', ({ sourceDirectory, outputDirectory, totalFiles }) => {
+        console.log(`📦 Організація: ${sourceDirectory}`)
+        console.log(`Ціль: ${outputDirectory}\n`)
+        process.stdout.write(`Копіювання... ${drawProgressBar(0, totalFiles)}\n`)
+      })
+
+      organizer.on('copy-start', ({ processed, totalFiles }) => {
+        process.stdout.write(`\rКопіювання... ${drawProgressBar(processed, totalFiles)}   `)
+      })
+
+      organizer.on('copy-complete', ({ processed, totalFiles }) => {
+        process.stdout.write(`\rКопіювання... ${drawProgressBar(processed, totalFiles)}   `)
+      })
+
+      organizer.on('copy-error', ({ error }) => {
+        console.error('\n' + friendlyFsErrorMessage(error))
+        process.exit(1)
+      })
+
+      organizer.on('organize-complete', (result) => {
+        process.stdout.write('\n')
+        console.log('\n✅ Готово!\n')
+        console.log('Підсумок:')
+        for (const [category, count] of Object.entries(result.summary)) {
+          console.log(`  ${category}: ${count} файлів → ${result.outputDirectory}/${category}/`)
+        }
+        console.log(`\nВсього скопійовано: ${result.totalFiles} файлів (${formatSize(result.totalCopiedBytes)})`)
+      })
+
+      organizer.on('error', (err) => {
+        console.error(friendlyFsErrorMessage(err))
+        process.exit(1)
+      })
+
+      await organizer.organize(directory, flags.output)
       return
     }
 
