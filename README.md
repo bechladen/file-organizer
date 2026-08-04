@@ -1,50 +1,50 @@
 # file-organizer
 
-Lecture-style Node.js CLI tool to scan a directory, find duplicates, organize files by category, and (optionally) cleanup old files.
+Навчальний CLI-інструмент на Node.js (у стилі лекцій), який вміє сканувати директорію, знаходити дублікати, організовувати файли по категоріях та (опційно) очищати старі файли.
 
-## Safety
+## Безпека
 
-- `scan` / `duplicates`: read-only.
-- `organize`: copies files into an output directory (does not delete originals).
-- `cleanup`: **dry-run by default**. Real deletion requires **both** `--confirm` and `--yes-i-know`.
+- `scan` / `duplicates`: тільки читання (нічого не змінює).
+- `organize`: копіює файли в цільову директорію (оригінали не видаляє).
+- `cleanup`: за замовчуванням **dry-run** (без видалення). Реальне видалення потребує **двох** прапорців: `--confirm` і `--yes-i-know`.
 
-## Usage (test directory first)
+## Використання (спочатку тестова директорія)
 
-Use your test directory:
+Використовуй тестову директорію:
 
 - `~/Desktop/organizer-test/`
 
-### Scan
+### scan
 
 ```bash
 node file-organizer.js scan ~/Desktop/organizer-test
 ```
 
-### Duplicates
+### duplicates
 
 ```bash
 node file-organizer.js duplicates ~/Desktop/organizer-test
 ```
 
-### Organize
+### organize
 
 ```bash
 node file-organizer.js organize ~/Desktop/organizer-test --output ~/Desktop/organizer-output
 ```
 
-### Cleanup (dry run)
+### cleanup (dry-run)
 
 ```bash
 node file-organizer.js cleanup ~/Desktop/organizer-test --older-than 90
 ```
 
-### Cleanup (real delete; double confirm)
+### cleanup (реальне видалення; подвійне підтвердження)
 
 ```bash
 node file-organizer.js cleanup ~/Desktop/organizer-test --older-than 90 --confirm --yes-i-know
 ```
 
-## GitHub submission
+## Здача в GitHub
 
-Publish the `file-organizer/` folder to GitHub and submit the link to it.
+Опублікуй директорію `file-organizer/` у GitHub і прикріпи посилання на неї.
 
