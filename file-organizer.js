@@ -3,6 +3,7 @@ import process from 'node:process'
 import { Scanner } from './lib/scanner.js'
 import { DuplicateFinder } from './lib/duplicates.js'
 import { Organizer } from './lib/organizer.js'
+import { Cleanup } from './lib/cleanup.js'
 import { formatSize } from './lib/utils/format.js'
 import { friendlyFsErrorMessage } from './lib/utils/errors.js'
 import { drawProgressBar } from './lib/utils/progress.js'
@@ -112,6 +113,16 @@ function printDuplicatesReport(result) {
 
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log(`💾 Разом марно: ${formatSize(totalWastedBytes)}`)
+}
+
+function printCleanupList(files) {
+  for (const f of files) {
+    const days = Math.floor(f.daysOld)
+    console.log(`${f.name}`)
+    console.log(`  Розмір: ${formatSize(f.size)}`)
+    console.log(`  Змінено: ${days} дн. тому`)
+    console.log('')
+  }
 }
 
 async function main() {
@@ -233,7 +244,63 @@ async function main() {
         printHelp()
         process.exit(1)
       }
-      console.log('OK: cleanup', directory, 'older-than', flags.olderThan)
+
+      const olderThanDays = Number(flags.olderThan)
+      if (!Number.isFinite(olderThanDays) || olderThanDays < 0) {
+        console.error('❌ Помилка: --older-than має бути не від’ємним числом')
+        process.exit(1)
+      }
+
+      const cleanup = new Cleanup()
+
+      cleanup.on('cleanup-start', ({ directory: dir }) => {
+        console.log(`🧹 Очищення: ${dir}`)
+        console.log(`Шукаю файли старші за ${olderThanDays} днів...\n`)
+      })
+
+      cleanup.on('file-scanned', ({ processed, totalFiles }) => {
+        process.stdout.write(`\rСканування... ${drawProgressBar(processed, totalFiles)}   `)
+      })
+
+      cleanup.on('file-found', ({ processed, totalFiles }) => {
+        process.stdout.write(`\rСканування... ${drawProgressBar(processed, totalFiles)}   `)
+      })
+
+      cleanup.on('file-deleted', ({ deleted, totalToDelete }) => {
+        process.stdout.write(`\rВидалення... ${drawProgressBar(deleted, totalToDelete)}   `)
+      })
+
+      cleanup.on('cleanup-complete', (result) => {
+        process.stdout.write('\n')
+
+        if (result.mode === 'dry-run') {
+          console.log(`\nЗнайдено ${result.candidates.length} файлів для видалення:\n`)
+          printCleanupList(result.candidates.slice(0, 10))
+
+          if (result.candidates.length > 10) {
+            console.log(`... (ще ${result.candidates.length - 10} файлів)`)
+          }
+
+          console.log(`\nРазом: ${result.candidates.length} файлів (${formatSize(result.totalBytes)})\n`)
+          console.log('⚠️  DRY RUN: файли НЕ видалені.')
+          console.log('Щоб реально видалити, запусти з прапорцями: --confirm --yes-i-know')
+          return
+        }
+
+        console.log('\n✅ Очищення завершено!')
+        console.log(`Видалено: ${result.deleted} файлів (${formatSize(result.freedBytes)} звільнено)`)
+      })
+
+      cleanup.on('error', (err) => {
+        console.error(friendlyFsErrorMessage(err))
+        process.exit(1)
+      })
+
+      await cleanup.run(directory, {
+        olderThanDays,
+        confirm: Boolean(flags.confirm),
+        yesIKnow: Boolean(flags.yesIKnow),
+      })
       return
     }
 
