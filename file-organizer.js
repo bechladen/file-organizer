@@ -1,6 +1,7 @@
 import process from 'node:process'
 
 import { Scanner } from './lib/scanner.js'
+import { DuplicateFinder } from './lib/duplicates.js'
 import { formatSize } from './lib/utils/format.js'
 import { friendlyFsErrorMessage } from './lib/utils/errors.js'
 import { drawProgressBar } from './lib/utils/progress.js'
@@ -87,6 +88,31 @@ function printScanReport(stats) {
   }
 }
 
+function printDuplicatesReport(result) {
+  const { groups, totalWastedBytes } = result
+
+  if (groups.length === 0) {
+    console.log('\n✅ Дублікатів не знайдено.')
+    return
+  }
+
+  console.log(`\nЗнайдено груп дублікатів: ${groups.length} (марно: ${formatSize(totalWastedBytes)})\n`)
+
+  groups.forEach((g, idx) => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log(`Група ${idx + 1} (${g.count} копій, ${formatSize(g.fileSize)} кожна):`)
+    console.log(`  SHA-256: ${g.hash}`)
+    console.log('')
+    for (const f of g.files) {
+      console.log(`  📄 ${f.path}`)
+    }
+    console.log(`\n  Марно: ${formatSize(g.wastedBytes)}\n`)
+  })
+
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log(`💾 Разом марно: ${formatSize(totalWastedBytes)}`)
+}
+
 async function main() {
   const { command, directory, flags } = parseArgs(process.argv)
 
@@ -131,7 +157,28 @@ async function main() {
         printHelp()
         process.exit(1)
       }
-      console.log('OK: duplicates', directory)
+      const finder = new DuplicateFinder()
+
+      finder.on('scan-start', ({ directory: dir, totalFiles }) => {
+        console.log(`🔍 Пошук дублікатів у: ${dir}`)
+        process.stdout.write(`Обчислення хешів... ${drawProgressBar(0, totalFiles)}\n`)
+      })
+
+      finder.on('file-processed', ({ processed, totalFiles }) => {
+        process.stdout.write(`\rОбчислення хешів... ${drawProgressBar(processed, totalFiles)}   `)
+      })
+
+      finder.on('duplicates-found', (result) => {
+        process.stdout.write('\n')
+        printDuplicatesReport(result)
+      })
+
+      finder.on('error', (err) => {
+        console.error(friendlyFsErrorMessage(err))
+        process.exit(1)
+      })
+
+      await finder.find(directory)
       return
     }
 
