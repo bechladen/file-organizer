@@ -1,6 +1,6 @@
 # file-organizer
 
-Навчальний CLI-інструмент на Node.js (у стилі лекцій), який вміє сканувати директорію, знаходити дублікати, організовувати файли по категоріях та (опційно) очищати старі файли.
+Навчальний CLI-інструмент на Node.js, який вміє сканувати директорію, знаходити дублікати, організовувати файли по категоріях та (опційно) очищати старі файли.
 
 ## Безпека
 
@@ -43,8 +43,3 @@ node file-organizer.js cleanup ~/Desktop/organizer-test --older-than 90
 ```bash
 node file-organizer.js cleanup ~/Desktop/organizer-test --older-than 90 --confirm --yes-i-know
 ```
-
-## Здача в GitHub
-
-Опублікуй директорію `file-organizer/` у GitHub і прикріпи посилання на неї.
-
