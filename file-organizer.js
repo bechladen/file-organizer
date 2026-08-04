@@ -1,6 +1,9 @@
 import process from 'node:process'
 
+import { Scanner } from './lib/scanner.js'
+import { formatSize } from './lib/utils/format.js'
 import { friendlyFsErrorMessage } from './lib/utils/errors.js'
+import { drawProgressBar } from './lib/utils/progress.js'
 
 function printHelp() {
   console.log(`file-organizer
@@ -48,6 +51,42 @@ function parseArgs(argv) {
   return { command, directory, flags }
 }
 
+function formatDaysAgo(date) {
+  const dayMs = 1000 * 60 * 60 * 24
+  const days = Math.floor((Date.now() - date.getTime()) / dayMs)
+  return `${days} дн. тому`
+}
+
+function printScanReport(stats) {
+  console.log('\n\n📊 Результати сканування:')
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log(`Всього файлів: ${stats.totalFiles}`)
+  console.log(`Всього директорій: ${stats.totalDirs}`)
+  console.log(`Загальний розмір: ${formatSize(stats.totalSize)}\n`)
+
+  console.log('За типами файлів:')
+  const exts = Object.entries(stats.byExt).sort(([, a], [, b]) => b.count - a.count)
+  for (const [ext, data] of exts) {
+    console.log(`  ${ext.padEnd(14)} ${String(data.count).padStart(4)} файлів   ${formatSize(data.size)}`)
+  }
+
+  console.log('\nВік файлів:')
+  console.log(`  Останні 7 днів:     ${stats.age.last7Days} файлів`)
+  console.log(`  Останні 30 днів:    ${stats.age.last30Days} файлів`)
+  console.log(`  Старші за 90 днів:  ${stats.age.olderThan90Days} файлів`)
+
+  if (stats.largestFiles.length > 0) {
+    console.log('\nНайбільші файли:')
+    stats.largestFiles.forEach((f, idx) => {
+      console.log(`  ${idx + 1}. ${f.name}   ${formatSize(f.size)}`)
+    })
+  }
+
+  if (stats.oldestFile) {
+    console.log(`\nНайстаріший файл: ${stats.oldestFile.name} (змінено ${formatDaysAgo(stats.oldestFile.mtime)})`)
+  }
+}
+
 async function main() {
   const { command, directory, flags } = parseArgs(process.argv)
 
@@ -62,7 +101,28 @@ async function main() {
         printHelp()
         process.exit(1)
       }
-      console.log('OK: scan', directory)
+      const scanner = new Scanner()
+
+      scanner.on('scan-start', ({ directory: dir, totalFiles }) => {
+        console.log(`📂 Сканування: ${dir}`)
+        process.stdout.write(`Обробка... ${drawProgressBar(0, totalFiles)}\n`)
+      })
+
+      scanner.on('file-found', ({ processed, totalFiles }) => {
+        process.stdout.write(`\rОбробка... ${drawProgressBar(processed, totalFiles)}   `)
+      })
+
+      scanner.on('scan-complete', (stats) => {
+        process.stdout.write('\n')
+        printScanReport(stats)
+      })
+
+      scanner.on('error', (err) => {
+        console.error(friendlyFsErrorMessage(err))
+        process.exit(1)
+      })
+
+      await scanner.scan(directory)
       return
     }
 
